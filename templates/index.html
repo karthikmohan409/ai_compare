@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GitHub Repo Comparison</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: auto; }
+        .highlight { background-color: yellow; }
+        .remove { color: red; }
+        .add { color: green; }
+        .diff-container { margin-top: 20px; }
+        .diff { margin-bottom: 20px; }
+        .diff pre { padding: 10px; border: 1px solid #ccc; }
+        .status { margin: 20px 0; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>GitHub Repo Comparison</h1>
+    <form id="compare-form">
+        <div>
+            <label for="human_repo_url">Human Repository URL:</label>
+            <input type="url" id="human_repo_url" name="human_repo_url" required>
+        </div>
+        <div>
+            <label for="ai_repo_url">AI Repository URL:</label>
+            <input type="url" id="ai_repo_url" name="ai_repo_url" required>
+        </div>
+        <button type="submit">Compare</button>
+    </form>
+    
+    <div class="status" id="status"></div>
+    <div class="diff-container" id="diff-container"></div>
+</div>
+
+<script>
+    document.getElementById('compare-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const humanRepoUrl = document.getElementById('human_repo_url').value;
+        const aiRepoUrl = document.getElementById('ai_repo_url').value;
+        const statusDiv = document.getElementById('status');
+        const container = document.getElementById('diff-container');
+        
+        statusDiv.innerHTML = 'Cloning human repository...';
+        
+        fetch('/compare', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ human_repo_url: humanRepoUrl, ai_repo_url: aiRepoUrl })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                statusDiv.innerHTML = `<div class="error">${data.error}</div>`;
+                return;
+            }
+            
+            statusDiv.innerHTML = 'Cloning AI repository...';
+            
+            setTimeout(() => {
+                statusDiv.innerHTML = 'Starting comparison...';
+                
+                setTimeout(() => {
+                    container.innerHTML = '';
+                    for (const file in data) {
+                        const comparison = data[file];
+                        const diff = comparison.diffs;
+                        const humanContent = comparison.human_content;
+                        const aiContent = comparison.ai_content;
+                        
+                        const diffElement = document.createElement('div');
+                        diffElement.className = 'diff';
+                        
+                        const title = document.createElement('h2');
+                        title.textContent = file;
+                        diffElement.appendChild(title);
+                        
+                        const humanElement = document.createElement('div');
+                        humanElement.innerHTML = `<h3>Human</h3><pre>${humanContent}</pre>`;
+                        diffElement.appendChild(humanElement);
+                        
+                        const aiElement = document.createElement('div');
+                        aiElement.innerHTML = `<h3>AI</h3><pre>${aiContent}</pre>`;
+                        diffElement.appendChild(aiElement);
+                        
+                        if (diff.remove && diff.remove.length) {
+                            const removeElement = document.createElement('pre');
+                            removeElement.className = 'remove';
+                            removeElement.textContent = diff.remove.join('\n');
+                            diffElement.appendChild(removeElement);
+                        }
+                        
+                        if (diff.add && diff.add.length) {
+                            const addElement = document.createElement('pre');
+                            addElement.className = 'add';
+                            addElement.textContent = diff.add.join('\n');
+                            diffElement.appendChild(addElement);
+                        }
+                        
+                        const approveButton = document.createElement('button');
+                        approveButton.textContent = 'Approve';
+                        approveButton.addEventListener('click', function () {
+                            fetch('/approve', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ file: file })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                alert(data.message);
+                            });
+                        });
+                        diffElement.appendChild(approveButton);
+                        
+                        container.appendChild(diffElement);
+                    }
+                    statusDiv.innerHTML = 'Comparison complete.';
+                }, 2000);
+            }, 2000);
+        })
+        .catch(error => {
+            statusDiv.innerHTML = `<div class="error">Error: ${error}</div>`;
+        });
+    });
+</script>
+</body>
+</html>
